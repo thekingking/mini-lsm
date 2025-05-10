@@ -56,7 +56,7 @@ impl MemTable {
         Self {
             map: Arc::new(SkipMap::new()),
             wal: None,
-            id: id,
+            id,
             approximate_size: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -125,8 +125,16 @@ impl MemTable {
     }
 
     /// Get an iterator over a range of keys.
-    pub fn scan(&self, _lower: Bound<&[u8]>, _upper: Bound<&[u8]>) -> MemTableIterator {
-        unimplemented!()
+    pub fn scan(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> MemTableIterator {
+        // 自引用结构，使用`self_referencing`宏来实现的构造器来创建
+        let mut iter = MemTableIteratorBuilder {
+            map: self.map.clone(),
+            iter_builder: |map| map.range((map_bound(lower), map_bound(upper))),
+            item: (Bytes::new(), Bytes::new()),
+        }
+        .build();
+        iter.next().unwrap();
+        iter
     }
 
     /// Flush the mem-table to SSTable. Implement in week 1 day 6.
@@ -172,18 +180,30 @@ impl StorageIterator for MemTableIterator {
     type KeyType<'a> = KeySlice<'a>;
 
     fn value(&self) -> &[u8] {
-        unimplemented!()
+        self.with_item(|item| item.1.as_ref())
     }
 
     fn key(&self) -> KeySlice {
-        unimplemented!()
+        self.with_item(|item| KeySlice::from_slice(item.0.as_ref()))
     }
 
     fn is_valid(&self) -> bool {
-        unimplemented!()
+        self.with_item(|item| !item.0.is_empty())
     }
 
     fn next(&mut self) -> Result<()> {
-        unimplemented!()
+        // (key, value) pair为空时表示已经到达末尾
+        let mut key = Bytes::new();
+        let mut value = Bytes::new();
+        self.with_iter_mut(|iter| {
+            if let Some(e) = iter.next() {
+                key = e.key().clone();
+                value = e.value().clone();
+            }
+        });
+        self.with_item_mut(|item| {
+            *item = (key, value);
+        });
+        Ok(())
     }
 }
