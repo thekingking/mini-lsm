@@ -15,6 +15,8 @@
 #![allow(unused_variables)] // TODO(you): remove this lint after implementing this mod
 #![allow(dead_code)] // TODO(you): remove this lint after implementing this mod
 
+use std::vec;
+
 use crate::key::{KeySlice, KeyVec};
 
 use super::Block;
@@ -34,22 +36,50 @@ pub struct BlockBuilder {
 impl BlockBuilder {
     /// Creates a new block builder.
     pub fn new(block_size: usize) -> Self {
-        unimplemented!()
+        Self {
+            offsets: vec![],
+            data: vec![],
+            block_size,
+            first_key: KeyVec::new(),
+        }
     }
 
     /// Adds a key-value pair to the block. Returns false when the block is full.
     #[must_use]
     pub fn add(&mut self, key: KeySlice, value: &[u8]) -> bool {
-        unimplemented!()
+        if self.offsets.is_empty() {
+            self.first_key = key.to_key_vec();
+        } else if self.data.len() + self.offsets.len() * 2 + 2 + key.len() + 2 + value.len() + 2 + 2
+            > self.block_size
+        {
+            return false; // Block is full
+        }
+
+        // Store the offset of the current key-value pair
+        let offset = self.data.len() as u16;
+        self.offsets.push(offset);
+
+        // Append the key and value to the data
+        self.data
+            .extend_from_slice((key.len() as u16).to_le_bytes().as_ref());
+        self.data.extend_from_slice(key.raw_ref());
+        self.data
+            .extend_from_slice((value.len() as u16).to_le_bytes().as_ref());
+        self.data.extend_from_slice(value);
+
+        true
     }
 
     /// Check if there is no key-value pair in the block.
     pub fn is_empty(&self) -> bool {
-        unimplemented!()
+        self.offsets.is_empty()
     }
 
     /// Finalize the block.
     pub fn build(self) -> Block {
-        unimplemented!()
+        Block {
+            data: self.data,
+            offsets: self.offsets,
+        }
     }
 }

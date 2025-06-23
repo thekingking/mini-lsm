@@ -410,7 +410,7 @@ impl LsmStorageInner {
         for immutable in state.imm_memtables.iter() {
             iters.push(Box::new(immutable.scan(lower, upper)));
         }
-        
+
         let merge_iter = MergeIterator::<MemTableIterator>::create(iters);
         Ok(FusedIterator::new(LsmIterator::new(merge_iter)?))
     }
